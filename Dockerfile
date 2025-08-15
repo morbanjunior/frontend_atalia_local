@@ -1,32 +1,34 @@
-# frontend/Dockerfile
-FROM node:18-alpine AS builder
-
-# Crear y definir directorio
+# --- deps ---
+FROM node:18-alpine AS deps
 WORKDIR /app
+COPY package*.json ./
+RUN npm ci
 
-# Copiar dependencias y lock
-COPY package.json package-lock.json ./
-
-# Instalar dependencias
-RUN npm install
-
-# Copiar todo y hacer build
+# --- build ---
+FROM node:18-alpine AS builder
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# 👇 Asegúrate de que el .env esté en el mismo contexto del COPY
-COPY .env .env
-
+# No copiamos .env a la imagen; injéctalo en runtime con --env-file si hace falta
 RUN npm run build
 
-# Imagen final
+# --- runtime ---
 FROM node:18-alpine AS runner
 WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Copiar los artefactos de build
-COPY --from=builder /app ./
+# Instala solo dependencias de producción
+COPY package*.json ./
+RUN npm ci --omit=dev
 
-# Exponer puerto
+# Artefactos necesarios para next start
+COPY --from=builder /app/.next ./.next
+# Si NO tienes carpeta public/, comenta la siguiente línea
+COPY --from=builder /app/public ./public
+# Si realmente tienes next.config.js y lo necesitas en runtime, descomenta:
+# COPY --from=builder /app/next.config.js ./next.config.js
+
 EXPOSE 3000
-
-# Ejecutar en producción
-CMD ["npm", "run", "start"]
+CMD ["npx","next","start","-p","3000"]

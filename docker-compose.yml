@@ -1,0 +1,17 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: frontend_atalia
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    networks:
+      - multiagent_net
+    restart: unless-stopped
+
+networks:
+  multiagent_net:
+    external: true
